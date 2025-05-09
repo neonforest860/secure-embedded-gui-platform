@@ -1,15 +1,23 @@
 from PyQt6.QtWidgets import QWidget, QStackedWidget, QVBoxLayout, QLabel, QFrame
 from PyQt6.QtCore import Qt
 
-from ui.widgets.terminal import SecureTerminal
-# We'll import the PluginManagerWidget when needed to avoid circular imports
+from ui.widgets.enhanced_terminal import EnhancedTerminal
+from ui.widgets.map_widget import MapWidget
+from ui.widgets.system_monitor import SystemMonitorPanel
+from ui.widgets.log_panel import LogPanel
+from ui.widgets.settings_panel import SettingsPanel
+from ui.widgets.user_management import UserManagementPanel
+from ui.widgets.plugin_manager_widget import PluginManagerWidget
 
 class ContentArea(QStackedWidget):
     """
-    Main content area that displays different sections
+    Main content area that displays different sections based on sidebar selection
     """
-    def __init__(self, plugin_manager=None, parent=None):
+    def __init__(self, config_manager=None, security_manager=None, theme_manager=None, plugin_manager=None, parent=None):
         super().__init__(parent)
+        self.config_manager = config_manager
+        self.security_manager = security_manager
+        self.theme_manager = theme_manager
         self.plugin_manager = plugin_manager
         self.setup_ui()
     
@@ -31,16 +39,16 @@ class ContentArea(QStackedWidget):
         self.sections["plugins"] = self.create_plugins_section()
         
         # Settings section
-        self.sections["settings"] = self.create_admin_section("Settings", "System configuration")
+        self.sections["settings"] = self.create_settings_section()
         
         # Users section
-        self.sections["users"] = self.create_admin_section("Users", "User management")
+        self.sections["users"] = self.create_users_section()
         
         # System section
-        self.sections["system"] = self.create_admin_section("System", "System information and controls")
+        self.sections["system"] = self.create_system_section()
         
         # Logs section
-        self.sections["logs"] = self.create_admin_section("Logs", "System logs and audit trails")
+        self.sections["logs"] = self.create_logs_section()
         
         # Add all sections to the stacked widget
         for widget in self.sections.values():
@@ -59,10 +67,9 @@ class ContentArea(QStackedWidget):
         description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
         layout.addWidget(description)
         
-        # Add dashboard widgets here
-        
-        # Add spacer
-        layout.addStretch(1)
+        # Add system monitor for dashboard view
+        system_monitor = SystemMonitorPanel()
+        layout.addWidget(system_monitor)
         
         return widget
     
@@ -70,23 +77,11 @@ class ContentArea(QStackedWidget):
         """Create the map section"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        title = QLabel("Map")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
-        
-        description = QLabel("Interactive map interface")
-        description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
-        layout.addWidget(description)
-        
-        # Add map placeholder
-        map_placeholder = QFrame()
-        map_placeholder.setFrameShape(QFrame.Shape.StyledPanel)
-        map_placeholder.setStyleSheet("background-color: #ecf0f1; min-height: 300px;")
-        layout.addWidget(map_placeholder)
-        
-        # Add spacer
-        layout.addStretch(1)
+        # Create map widget
+        map_widget = MapWidget()
+        layout.addWidget(map_widget)
         
         return widget
     
@@ -94,17 +89,13 @@ class ContentArea(QStackedWidget):
         """Create the terminal section"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        title = QLabel("Terminal")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
-        
-        description = QLabel("Secure command shell")
-        description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
-        layout.addWidget(description)
-        
-        # Add terminal widget
-        terminal = SecureTerminal()
+        # Create enhanced terminal
+        terminal = EnhancedTerminal(
+            config_manager=self.config_manager,
+            security_manager=self.security_manager
+        )
         layout.addWidget(terminal)
         
         return widget
@@ -114,47 +105,114 @@ class ContentArea(QStackedWidget):
         widget = QWidget()
         layout = QVBoxLayout(widget)
         
-        title = QLabel("Plugins")
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
-        
-        description = QLabel("Plugin management")
-        description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
-        layout.addWidget(description)
-        
-        # We'll add the plugin manager widget when a plugin manager is available
+        # Create plugin manager widget if plugin manager is available
         if self.plugin_manager:
-            from ui.widgets.plugin_manager_widget import PluginManagerWidget
             plugin_manager_widget = PluginManagerWidget(self.plugin_manager)
             layout.addWidget(plugin_manager_widget)
         else:
-            placeholder = QLabel("Plugin manager not available")
-            placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(placeholder)
+            # Placeholder if plugin manager is not available
+            title = QLabel("Plugins")
+            title.setStyleSheet("font-size: 24px; font-weight: bold;")
+            layout.addWidget(title)
+            
+            description = QLabel("Plugin manager not available")
+            description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
+            layout.addWidget(description)
         
         return widget
     
-    def create_admin_section(self, title_text, description_text):
-        """Create an admin section with title and description"""
+    def create_settings_section(self):
+        """Create the settings section"""
         widget = QWidget()
         layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        title = QLabel(title_text)
-        title.setStyleSheet("font-size: 24px; font-weight: bold;")
-        layout.addWidget(title)
+        # Check if user is authorized
+        if self.security_manager and not self.security_manager.authorized:
+            # Unauthorized view
+            title = QLabel("Settings")
+            title.setStyleSheet("font-size: 24px; font-weight: bold;")
+            layout.addWidget(title)
+            
+            description = QLabel("Administrative access required")
+            description.setStyleSheet("font-size: 16px; color: #e74c3c;")
+            layout.addWidget(description)
+        else:
+            # Create settings panel
+            settings_panel = SettingsPanel(
+                config_manager=self.config_manager,
+                theme_manager=self.theme_manager
+            )
+            layout.addWidget(settings_panel)
         
-        description = QLabel(description_text)
-        description.setStyleSheet("font-size: 16px; color: #7f8c8d;")
-        layout.addWidget(description)
+        return widget
+    
+    def create_users_section(self):
+        """Create the users section"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
         
-        # Add admin restricted notice
-        admin_notice = QLabel("This section requires administrator privileges")
-        admin_notice.setStyleSheet("color: #e74c3c; font-weight: bold; margin-top: 20px;")
-        admin_notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(admin_notice)
+        # Check if user is authorized
+        if self.security_manager and not self.security_manager.authorized:
+            # Unauthorized view
+            title = QLabel("User Management")
+            title.setStyleSheet("font-size: 24px; font-weight: bold;")
+            layout.addWidget(title)
+            
+            description = QLabel("Administrative access required")
+            description.setStyleSheet("font-size: 16px; color: #e74c3c;")
+            layout.addWidget(description)
+        else:
+            # Create user management panel
+            user_panel = UserManagementPanel(self.security_manager)
+            layout.addWidget(user_panel)
         
-        # Add spacer
-        layout.addStretch(1)
+        return widget
+    
+    def create_system_section(self):
+        """Create the system section"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Check if user is authorized
+        if self.security_manager and not self.security_manager.authorized:
+            # Unauthorized view
+            title = QLabel("System")
+            title.setStyleSheet("font-size: 24px; font-weight: bold;")
+            layout.addWidget(title)
+            
+            description = QLabel("Administrative access required")
+            description.setStyleSheet("font-size: 16px; color: #e74c3c;")
+            layout.addWidget(description)
+        else:
+            # Create system monitor panel
+            system_monitor = SystemMonitorPanel()
+            layout.addWidget(system_monitor)
+        
+        return widget
+    
+    def create_logs_section(self):
+        """Create the logs section"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Check if user is authorized
+        if self.security_manager and not self.security_manager.authorized:
+            # Unauthorized view
+            title = QLabel("Logs")
+            title.setStyleSheet("font-size: 24px; font-weight: bold;")
+            layout.addWidget(title)
+            
+            description = QLabel("Administrative access required")
+            description.setStyleSheet("font-size: 16px; color: #e74c3c;")
+            layout.addWidget(description)
+        else:
+            # Create log panel
+            log_panel = LogPanel()
+            layout.addWidget(log_panel)
         
         return widget
     
@@ -162,20 +220,70 @@ class ContentArea(QStackedWidget):
         """Switch to the specified section"""
         if section_name in self.sections:
             self.setCurrentWidget(self.sections[section_name])
+            
+            # If section requires admin access, check authorization
+            if section_name in ["settings", "users", "system", "logs"]:
+                self.refresh_admin_section(section_name)
     
-    def set_plugin_manager(self, plugin_manager):
-        """Set or update the plugin manager"""
-        self.plugin_manager = plugin_manager
+    def refresh_admin_section(self, section_name):
+        """Refresh an admin section based on authorization status"""
+        # Check if user is authorized
+        is_authorized = self.security_manager and self.security_manager.authorized
         
-        # Recreate plugins section with the manager
-        old_plugins_section = self.sections["plugins"]
-        index = self.indexOf(old_plugins_section)
+        # Get current widget
+        current_widget = self.sections[section_name]
         
-        # Create new section
-        new_plugins_section = self.create_plugins_section()
-        self.sections["plugins"] = new_plugins_section
+        # Check if widget needs to be recreated
+        is_admin_widget = isinstance(current_widget.layout().itemAt(0).widget(), (
+            SettingsPanel, UserManagementPanel, SystemMonitorPanel, LogPanel
+        ))
         
-        # Replace in the stacked widget
-        if index != -1:
-            self.removeWidget(old_plugins_section)
-            self.insertWidget(index, new_plugins_section)
+        if is_authorized and not is_admin_widget:
+            # Recreate section with proper admin widget
+            old_widget = self.sections[section_name]
+            index = self.indexOf(old_widget)
+            
+            if section_name == "settings":
+                new_widget = self.create_settings_section()
+            elif section_name == "users":
+                new_widget = self.create_users_section()
+            elif section_name == "system":
+                new_widget = self.create_system_section()
+            elif section_name == "logs":
+                new_widget = self.create_logs_section()
+            
+            # Update sections dictionary
+            self.sections[section_name] = new_widget
+            
+            # Replace in the stacked widget
+            self.removeWidget(old_widget)
+            self.insertWidget(index, new_widget)
+            self.setCurrentWidget(new_widget)
+        
+        elif not is_authorized and is_admin_widget:
+            # Recreate section with unauthorized message
+            old_widget = self.sections[section_name]
+            index = self.indexOf(old_widget)
+            
+            if section_name == "settings":
+                new_widget = self.create_settings_section()
+            elif section_name == "users":
+                new_widget = self.create_users_section()
+            elif section_name == "system":
+                new_widget = self.create_system_section()
+            elif section_name == "logs":
+                new_widget = self.create_logs_section()
+            
+            # Update sections dictionary
+            self.sections[section_name] = new_widget
+            
+            # Replace in the stacked widget
+            self.removeWidget(old_widget)
+            self.insertWidget(index, new_widget)
+            self.setCurrentWidget(new_widget)
+    
+    def update_authorization(self, authorized):
+        """Update all admin sections when authorization state changes"""
+        # Refresh all admin sections
+        for section in ["settings", "users", "system", "logs"]:
+            self.refresh_admin_section(section)
