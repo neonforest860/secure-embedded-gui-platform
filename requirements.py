@@ -1,0 +1,6 @@
+psutil==7.0.0
+PyQt6==6.9.0
+PyQt6-Qt6==6.9.0
+PyQt6-WebEngine==6.9.0
+PyQt6-WebEngine-Qt6==6.9.0
+PyQt6_sip==13.10.0
